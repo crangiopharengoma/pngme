@@ -1,12 +1,19 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
+// see http://www.libpng.org/pub/png/spec/1.2/PNG-Structure.html 3.3 for definition of these bits
+const ANCILLARY_BIT: usize = 0;
+const PRIVATE_BIT: usize = 1;
+const RESERVED_BIT: usize = 2;
+const SAFE_TO_COPY_BIT: usize = 3;
+
 #[derive(Debug)]
 pub enum Error {
     TooManyBytes(String),
+    MustBeAlphabetic(String),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ChunkType {
     bytes: [u8; 4],
 }
@@ -30,6 +37,15 @@ impl FromStr for ChunkType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         if s.len() == 4 {
+            let bytes = s.as_bytes();
+            for byte in bytes {
+                if !byte.is_ascii_alphabetic() {
+                    return Err(Error::MustBeAlphabetic(format!(
+                        "A ChunkType may only contain A-Z or a-z. Found {}",
+                        std::str::from_utf8(std::slice::from_ref(byte)).unwrap()
+                    )));
+                }
+            }
             ChunkType::try_from(<[u8; 4]>::try_from(s.as_bytes()).unwrap())
         } else {
             Err(Error::TooManyBytes(format!(
@@ -46,23 +62,30 @@ impl ChunkType {
     }
 
     fn is_valid(&self) -> bool {
-        true
+        // self.bytes.is_ascii()
+        for byte in self.bytes {
+            if !byte.is_ascii_alphabetic() {
+                return false;
+            }
+        }
+
+        self.is_reserved_bit_valid()
     }
 
     fn is_critical(&self) -> bool {
-        true
+        u8::is_ascii_uppercase(&self.bytes[ANCILLARY_BIT])
     }
 
     fn is_public(&self) -> bool {
-        true
+        u8::is_ascii_uppercase(&self.bytes[PRIVATE_BIT])
     }
 
     fn is_reserved_bit_valid(&self) -> bool {
-        true
+        u8::is_ascii_uppercase(&self.bytes[RESERVED_BIT])
     }
 
     fn is_safe_to_copy(&self) -> bool {
-        true
+        u8::is_ascii_lowercase(&self.bytes[SAFE_TO_COPY_BIT])
     }
 }
 
