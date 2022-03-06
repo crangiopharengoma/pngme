@@ -57,11 +57,11 @@ impl FromStr for ChunkType {
 }
 
 impl ChunkType {
-    fn bytes(&self) -> [u8; 4] {
+    pub fn bytes(&self) -> [u8; 4] {
         self.bytes
     }
 
-    fn is_valid(&self) -> bool {
+    pub fn is_valid(&self) -> bool {
         // self.bytes.is_ascii()
         for byte in self.bytes {
             if !byte.is_ascii_alphabetic() {
@@ -72,19 +72,19 @@ impl ChunkType {
         self.is_reserved_bit_valid()
     }
 
-    fn is_critical(&self) -> bool {
+    pub fn is_critical(&self) -> bool {
         u8::is_ascii_uppercase(&self.bytes[ANCILLARY_BIT])
     }
 
-    fn is_public(&self) -> bool {
+    pub fn is_public(&self) -> bool {
         u8::is_ascii_uppercase(&self.bytes[PRIVATE_BIT])
     }
 
-    fn is_reserved_bit_valid(&self) -> bool {
+    pub fn is_reserved_bit_valid(&self) -> bool {
         u8::is_ascii_uppercase(&self.bytes[RESERVED_BIT])
     }
 
-    fn is_safe_to_copy(&self) -> bool {
+    pub fn is_safe_to_copy(&self) -> bool {
         u8::is_ascii_lowercase(&self.bytes[SAFE_TO_COPY_BIT])
     }
 }
