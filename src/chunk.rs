@@ -1,8 +1,7 @@
 use crate::chunk_type::ChunkType;
-use crate::{Error, Result};
-use crc::Crc;
-use std::fmt::{Display, Formatter};
-use std::str::FromStr;
+use crate::Error;
+use crc::{Crc, CRC_32_ISO_HDLC};
+use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
 struct Chunk {
@@ -12,23 +11,41 @@ struct Chunk {
     crc: u32,
 }
 
+#[derive(Debug)]
+struct InvalidBytesError(String);
+
+impl Display for InvalidBytesError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for InvalidBytesError {}
+
 impl TryFrom<&[u8]> for Chunk {
     type Error = Error;
 
-    fn try_from(value: &[u8]) -> Result<Self> {
-        let length = u32::from_ne_bytes(<[u8; 4]>::try_from(&value[0..4]).unwrap());
-        let chunk_type = ChunkType::try_from(<[u8; 4]>::try_from(&value[4..8]).unwrap()).unwrap();
+    fn try_from(value: &[u8]) -> Result<Self, Self::Error> {
+        let length = u32::from_be_bytes(<[u8; 4]>::try_from(&value[0..4])?);
+        let chunk_type = ChunkType::try_from(<[u8; 4]>::try_from(&value[4..8])?)?;
 
         let data_end = &value.len() - 4;
         let data = Vec::from(&value[8..data_end]);
 
-        let crc = u32::from_ne_bytes(<[u8; 4]>::try_from(&value[data_end..]).unwrap());
-        Ok(Chunk {
-            length,
-            chunk_type,
-            data,
-            crc,
-        })
+        let crc = Self::calculate_crc(&chunk_type, &data);
+
+        if crc == u32::from_be_bytes(<[u8; 4]>::try_from(&value[data_end..])?) {
+            Ok(Chunk {
+                length,
+                chunk_type,
+                data,
+                crc,
+            })
+        } else {
+            Err(Box::new(InvalidBytesError(
+                "crc not valid for given bytes".to_string(),
+            )))
+        }
     }
 }
 
@@ -46,9 +63,11 @@ impl Display for Chunk {
 }
 
 impl Chunk {
-    fn new(chunk_type: ChunkType, data: Vec<u8>) -> Chunk {
-        let length = (data.len() + 12) as u32;
-        let crc = 1;
+    pub fn new(chunk_type: ChunkType, data: Vec<u8>) -> Chunk {
+        let length = data.len() as u32;
+
+        let crc = Self::calculate_crc(&chunk_type, &data);
+
         Chunk {
             length,
             chunk_type,
@@ -57,39 +76,51 @@ impl Chunk {
         }
     }
 
-    fn length(&self) -> u32 {
+    fn calculate_crc(chunk_type: &ChunkType, data: &[u8]) -> u32 {
+        let as_bytes: Vec<u8> = chunk_type
+            .bytes()
+            .iter()
+            .chain(data.iter())
+            .copied()
+            .collect();
+
+        let crc = Crc::<u32>::new(&CRC_32_ISO_HDLC);
+        crc.checksum(&as_bytes)
+    }
+
+    pub fn length(&self) -> u32 {
         self.length
     }
 
-    fn chunk_type(&self) -> &ChunkType {
+    pub fn chunk_type(&self) -> &ChunkType {
         &self.chunk_type
     }
 
-    fn data(&self) -> &[u8] {
+    pub fn data(&self) -> &[u8] {
         &self.data
     }
 
-    fn crc(&self) -> u32 {
+    pub fn crc(&self) -> u32 {
         self.crc
     }
 
-    fn data_as_string(&self) -> Result<String> {
+    // Fitting the API suggested by the unit tests, but this probably doesn't need to be a result
+    pub fn data_as_string(&self) -> Result<String, Error> {
         Ok(String::from_utf8_lossy(&self.data).to_string())
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
-        let mut result = Vec::new();
-        let length = u32::to_ne_bytes(self.length);
-        result.extend_from_slice(&length);
-        let chunk_type = self.chunk_type.bytes();
-        result.extend_from_slice(&chunk_type);
-        result.extend_from_slice(&self.data);
-        let crc = u32::to_ne_bytes(self.crc);
-
-        result.extend_from_slice(&self.data);
-        result
+    pub fn as_bytes(&self) -> Vec<u8> {
+        self.length()
+            .to_be_bytes()
+            .iter()
+            .chain(self.chunk_type.bytes().iter())
+            .chain(self.data.iter())
+            .chain(self.crc.to_be_bytes().iter())
+            .copied()
+            .collect()
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
