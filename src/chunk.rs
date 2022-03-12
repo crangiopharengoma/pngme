@@ -4,7 +4,7 @@ use crc::{Crc, CRC_32_ISO_HDLC};
 use std::fmt::{Debug, Display, Formatter};
 
 #[derive(Debug, Eq, PartialEq, Clone)]
-struct Chunk {
+pub struct Chunk {
     length: u32,
     chunk_type: ChunkType,
     data: Vec<u8>,
