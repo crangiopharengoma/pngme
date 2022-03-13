@@ -1,15 +1,8 @@
 use crate::chunk_type::ChunkType;
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, Parser};
 use std::path::PathBuf;
 
 #[derive(Parser)]
-pub struct Cli {
-    /// Which sub command to use
-    #[clap(subcommand)]
-    pub command: PngMeArgs,
-}
-
-#[derive(Subcommand)]
 pub enum PngMeArgs {
     Encode(EncodeArgs),
     Decode(DecodeArgs),
