@@ -64,6 +64,7 @@ impl Png {
     // Chunk length part only measures data length; adding on this amount gets the total length of the chunk
     pub const LENGTH_ADJUSTMENT: usize = 12;
     pub const STANDARD_HEADER: [u8; 8] = [137, 80, 78, 71, 13, 10, 26, 10];
+    pub const END_CHUNK: &'static str = "IEND";
 
     pub fn new(chunks: Vec<Chunk>) -> Png {
         Png {
@@ -77,7 +78,11 @@ impl Png {
     }
 
     pub fn append_chunk(&mut self, chunk: Chunk) {
+        let iend = self.remove_chunk(Self::END_CHUNK);
         self.data.push(chunk);
+        if let Ok(chunk) = iend {
+            self.data.push(chunk);
+        }
     }
 
     pub fn remove_chunk(&mut self, chunk_type: &str) -> Result<Chunk> {
